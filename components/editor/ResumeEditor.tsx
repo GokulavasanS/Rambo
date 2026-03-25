@@ -111,9 +111,9 @@ export function ResumeEditor({
             {/* Helper text */}
             <div className="px-4 py-2.5 bg-violet-500/5 border-b border-violet-500/10 flex-shrink-0">
                 <p className="text-xs text-violet-300/70">
-                    💡 Paste your resume with headings like <strong className="text-violet-300">"Experience"</strong>,{' '}
-                    <strong className="text-violet-300">"Education"</strong>, or{' '}
-                    <strong className="text-violet-300">"Skills"</strong>. You can also upload a PDF or image.
+                    💡 Paste your resume with headings like <strong className="text-violet-300">&quot;Experience&quot;</strong>,{' '}
+                    <strong className="text-violet-300">&quot;Education&quot;</strong>, or{' '}
+                    <strong className="text-violet-300">&quot;Skills&quot;</strong>. You can also upload a PDF or image.
                     <span className="text-white/40 ml-2">Select any text for AI assistance.</span>
                 </p>
             </div>

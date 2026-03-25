@@ -1,14 +1,8 @@
 // ============================================================
 // lib/ai/index.ts — AI abstraction layer (swappable provider)
 // ============================================================
-//
-// This module is the single integration point for AI features.
-// To swap providers, only this file needs updating.
-//
-// Current implementation: Google Gemini API (free tier)
-// Fallback: deterministic mock for development / offline use
 
-import type { AIRequest, AIResponse, AIActionType } from '@/types';
+import type { AIRequest, AIResponse, AIActionType, ResumeSectionType, ResumeData } from '@/types';
 
 // ---- Prompt templates per action ----
 
@@ -23,6 +17,10 @@ const ACTION_PROMPTS: Record<AIActionType, string> = {
         'Fix any grammar, punctuation, and spelling errors in the following resume text. Preserve the original meaning and style. Return only the corrected text, nothing else.',
     quantify:
         'Rewrite the following resume bullet point to include specific numbers, percentages, or metrics that demonstrate measurable impact. Return only the improved text, nothing else.',
+    tailorToJob:
+        'Rewrite the following resume bullet point to better match the provided job description by incorporating relevant keywords and aligning with the job requirements. Return only the improved text, nothing else.',
+    generateSummary:
+        'Write a compelling 2-3 sentence professional summary for a resume based on the provided resume content. It should highlight key skills, experience, and value proposition. Return only the summary text, nothing else.',
     custom: '', // Custom prompts are passed directly
 };
 
@@ -31,12 +29,13 @@ const ACTION_PROMPTS: Record<AIActionType, string> = {
  */
 function buildPrompt(request: AIRequest): string {
     const { prompt, selectedText, context } = request;
-    const { actionType, sectionType, roleTitle } = context;
+    const { actionType, sectionType, roleTitle, jobDescription } = context;
 
     const systemContext = [
         'You are an expert resume writer helping improve resume content.',
         sectionType ? `The text is from the "${sectionType}" section.` : '',
         roleTitle ? `The target role is: ${roleTitle}.` : '',
+        jobDescription ? `Job Description context: ${jobDescription.slice(0, 500)}` : '',
     ]
         .filter(Boolean)
         .join(' ');
@@ -49,19 +48,20 @@ function buildPrompt(request: AIRequest): string {
 
 /**
  * Mock AI implementation — deterministic responses for dev/offline use.
- * Returns a slightly modified version of the selected text.
  */
 async function mockAskAI(request: AIRequest): Promise<AIResponse> {
-    await new Promise((r) => setTimeout(r, 800)); // Simulate network latency
+    await new Promise((r) => setTimeout(r, 800));
 
     const { selectedText, context } = request;
 
-    const transforms: Record<AIActionType, string> = {
+    const transforms: Partial<Record<AIActionType, string>> = {
         strengthen: `Drove ${selectedText.toLowerCase().replace(/^led |^built |^created /i, '')} resulting in measurable improvement across key performance indicators.`,
         shorten: selectedText.split(' ').slice(0, Math.ceil(selectedText.split(' ').length * 0.6)).join(' ') + '.',
         formalize: selectedText.charAt(0).toUpperCase() + selectedText.slice(1).replace(/\bi\b/g, 'I'),
         'fix-grammar': selectedText.trim().replace(/\s+/g, ' '),
         quantify: selectedText.replace(/(improved|increased|reduced|built|led)/i, '$1 by X%'),
+        tailorToJob: `[Tailored] ${selectedText} — aligned with job requirements and key skills from the job description.`,
+        generateSummary: 'Results-driven professional with proven expertise in delivering high-impact solutions. Adept at collaborating across teams to drive business outcomes and exceed expectations.',
         custom: `[AI Response] ${selectedText}`,
     };
 
@@ -73,7 +73,6 @@ async function mockAskAI(request: AIRequest): Promise<AIResponse> {
 
 /**
  * Gemini API implementation.
- * Uses the free Gemini 1.5 Flash model via REST API.
  */
 async function geminiAskAI(request: AIRequest, apiKey: string): Promise<AIResponse> {
     const prompt = buildPrompt(request);
@@ -110,11 +109,6 @@ async function geminiAskAI(request: AIRequest, apiKey: string): Promise<AIRespon
 
 /**
  * Primary askAI function — selects provider based on environment.
- *
- * If NEXT_PUBLIC_GEMINI_API_KEY is set, uses Gemini.
- * Otherwise falls back to the deterministic mock.
- *
- * This function is always safe to call from client components.
  */
 export async function askAI(request: AIRequest): Promise<AIResponse> {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -138,18 +132,26 @@ export function buildAIRequest(
     selectedText: string,
     actionType: AIActionType,
     options: {
-        sectionType?: import('@/types').ResumeSectionType;
+        sectionType?: ResumeSectionType;
         roleTitle?: string;
         customPrompt?: string;
+        jobDescription?: string;
+        resumeData?: ResumeData;
     } = {}
 ): AIRequest {
+    const selectedOrSummary =
+        actionType === 'generateSummary' && options.resumeData
+            ? JSON.stringify(options.resumeData.sections.map((s) => s.title).join(', '))
+            : selectedText;
+
     return {
         prompt: options.customPrompt ?? ACTION_PROMPTS[actionType],
-        selectedText,
+        selectedText: selectedOrSummary,
         context: {
             actionType,
             sectionType: options.sectionType,
             roleTitle: options.roleTitle,
+            jobDescription: options.jobDescription,
         },
     };
 }

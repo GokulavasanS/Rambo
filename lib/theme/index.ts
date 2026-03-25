@@ -2,7 +2,7 @@
 // lib/theme/index.ts — 6 truly distinct resume themes
 // ============================================================
 
-import type { ResumeTheme, ThemePalette, TemplateId } from '@/types';
+import type { ResumeTheme, ThemePalette, TemplateCategory } from '@/types';
 
 export const BUILTIN_THEMES: ResumeTheme[] = [
     // ----------------------------------------------------------
@@ -11,6 +11,8 @@ export const BUILTIN_THEMES: ResumeTheme[] = [
     {
         id: 'classic-professional',
         name: 'Classic Professional',
+        description: 'Timeless left-aligned layout trusted by Fortune 500 recruiters.',
+        category: 'ats',
         templateId: 'classic-professional',
         columns: 1,
         palette: {
@@ -34,6 +36,8 @@ export const BUILTIN_THEMES: ResumeTheme[] = [
     {
         id: 'minimal-clean',
         name: 'Minimal Clean',
+        description: 'Ultra-clean centered layout with generous whitespace. Timeless.',
+        category: 'ats',
         templateId: 'minimal-clean',
         columns: 1,
         palette: {
@@ -57,6 +61,8 @@ export const BUILTIN_THEMES: ResumeTheme[] = [
     {
         id: 'modern-ats',
         name: 'Modern ATS',
+        description: 'Bold orange accents with maximum ATS parser readability.',
+        category: 'ats',
         templateId: 'modern-ats',
         columns: 1,
         palette: {
@@ -80,6 +86,8 @@ export const BUILTIN_THEMES: ResumeTheme[] = [
     {
         id: 'compact-developer',
         name: 'Compact Developer',
+        description: 'Dense technical layout optimized for software engineers.',
+        category: 'ats',
         templateId: 'compact-developer',
         columns: 1,
         palette: {
@@ -104,6 +112,8 @@ export const BUILTIN_THEMES: ResumeTheme[] = [
     {
         id: 'elegant-serif',
         name: 'Elegant Serif',
+        description: 'Refined serif typography for high-end executive and academic roles.',
+        category: 'creative',
         templateId: 'elegant-serif',
         columns: 1,
         palette: {
@@ -128,6 +138,8 @@ export const BUILTIN_THEMES: ResumeTheme[] = [
     {
         id: 'two-column-structured',
         name: 'Two-Column',
+        description: 'Creative two-column sidebar layout that visually pops.',
+        category: 'creative',
         templateId: 'two-column-structured',
         columns: 2,
         palette: {
@@ -153,6 +165,10 @@ export function getThemeById(id: string): ResumeTheme {
     return BUILTIN_THEMES.find((t) => t.id === id) ?? BUILTIN_THEMES[0];
 }
 
+export function getThemesByCategory(category: TemplateCategory): ResumeTheme[] {
+    return BUILTIN_THEMES.filter((t) => t.category === category);
+}
+
 /**
  * Generate two ResumeTheme variants from an extracted palette.
  */
@@ -166,6 +182,8 @@ export function generateThemesFromPalette(
     const themeA: ResumeTheme = {
         id: id1,
         name: 'Style Match',
+        description: 'Matched from uploaded resume image.',
+        category: 'creative',
         templateId: columns === 2 ? 'two-column-structured' : 'classic-professional',
         columns,
         palette,
@@ -180,6 +198,8 @@ export function generateThemesFromPalette(
     const themeB: ResumeTheme = {
         id: id2,
         name: 'ATS Safe',
+        description: 'ATS-optimized version using your extracted palette.',
+        category: 'ats',
         templateId: 'modern-ats',
         columns: 1,
         palette: {

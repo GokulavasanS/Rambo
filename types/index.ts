@@ -27,6 +27,8 @@ export interface ResumeEntry {
     period?: string;
     /** Location (optional) */
     location?: string;
+    /** Optional paragraph description (alternative to bullets) */
+    description?: string;
     bullets: ResumeBullet[];
 }
 
@@ -60,6 +62,8 @@ export interface ResumeData {
     id: string;
     fullName: string;
     title?: string;
+    /** Optional base64 data URL for profile photo */
+    profilePhoto?: string;
     contact?: ResumeContact;
     sections: ResumeSection[];
     meta?: ResumeMeta;
@@ -77,6 +81,8 @@ export type TemplateId =
     | 'elegant-serif'
     | 'two-column-structured';
 
+export type TemplateCategory = 'ats' | 'creative';
+
 export interface ThemePalette {
     primary: string;
     secondary?: string;
@@ -89,6 +95,10 @@ export interface ThemePalette {
 export interface ResumeTheme {
     id: string;
     name: string;
+    /** Human-readable description shown in the template picker */
+    description?: string;
+    /** Whether this template is ATS-safe or visually creative */
+    category?: TemplateCategory;
     templateId: TemplateId;
     columns: 1 | 2;
     palette: ThemePalette;
@@ -111,7 +121,9 @@ export type AIActionType =
     | 'formalize'
     | 'fix-grammar'
     | 'quantify'
-    | 'custom';
+    | 'custom'
+    | 'tailorToJob'
+    | 'generateSummary';
 
 export interface AIRequest {
     prompt: string;
@@ -128,6 +140,26 @@ export interface AIRequest {
 export interface AIResponse {
     suggestion: string;
     actionType: AIActionType;
+    /** Optional array of alternative suggestions for multi-choice UI */
+    variants?: string[];
+}
+
+// ============================================================
+// ATS Score Types
+// ============================================================
+
+export interface ATSScoreBreakdown {
+    keywordMatch: number;
+    formatting: number;
+    completeness: number;
+}
+
+export interface ATSScore {
+    total: number;
+    breakdown: ATSScoreBreakdown;
+    suggestions: string[];
+    missingSections: string[];
+    matchedKeywords: string[];
 }
 
 // ============================================================

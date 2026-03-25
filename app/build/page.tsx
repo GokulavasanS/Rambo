@@ -1,6 +1,6 @@
 // ============================================================
-// app/build/page.tsx — Fast & Clean flow (v3)
-// Light UI · Structured editor · 6 templates · Print export
+// app/build/page.tsx — Premium Build Experience
+// Single PDF export · Match Design link · No share/QR modal
 // ============================================================
 
 'use client';
@@ -13,8 +13,10 @@ import { useExport } from '@/hooks/useExport';
 import { StructuredEditor } from '@/components/editor/StructuredEditor';
 import { ResumePreview } from '@/components/resume/ResumePreview';
 import { ThemeSelector } from '@/components/editor/ThemeSelector';
+import { ThemeSettings } from '@/components/editor/ThemeSettings';
 import { Button } from '@/components/ui/Button';
 import { ResumesSidebar } from '@/components/editor/ResumesSidebar';
+import { ATSScorePanel } from '@/components/editor/ATSScorePanel';
 import { parseResumeText } from '@/lib/parsing';
 import { extractTextFromFile } from '@/lib/ocr';
 import type { ResumeData } from '@/types';
@@ -51,16 +53,15 @@ export default function BuildPage() {
     useAutosave(3000);
     useAIBulletHandler();
 
-    const { exportPDF, exportPlainText, isExportingPDF } = useExport();
+    const { exportPDF, isExportingPDF } = useExport();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Mobile tab state
     const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [exportMenuOpen, setExportMenuOpen] = useState(false);
-    const [previewZoom, setPreviewZoom] = useState(0.65);
+    const [previewZoom, setPreviewZoom] = useState(0.55);
     const [editingName, setEditingName] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
+    const [showAtsPanel, setShowAtsPanel] = useState(false);
 
     useEffect(() => { refreshStoredResumes(); }, [refreshStoredResumes]);
 
@@ -79,13 +80,7 @@ export default function BuildPage() {
     }, [setIsOCRProcessing, setResumeData]);
 
     const handleExportPDF = async () => {
-        setExportMenuOpen(false);
         await exportPDF('resume-preview-root', `${resumeData.fullName.replace(/\s+/g, '_')}_resume.pdf`);
-    };
-
-    const handleExportText = () => {
-        setExportMenuOpen(false);
-        exportPlainText(resumeData, `${resumeData.fullName.replace(/\s+/g, '_')}_resume.txt`);
     };
 
     const commitName = () => {
@@ -96,27 +91,29 @@ export default function BuildPage() {
     return (
         <div
             className="flex flex-col h-screen overflow-hidden"
-            style={{ background: '#fafafa', fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif" }}
+            style={{ background: '#f1f5f9', fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif" }}
         >
-            {/* ============================================================
-          TOP NAVIGATION BAR
-          ============================================================ */}
+            {/* ── TOP NAV ─────────────────────────────────── */}
             <header
                 className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0 z-20"
                 style={{
                     background: '#ffffff',
                     borderBottom: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 4px rgba(15,23,42,0.04)',
+                    boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
                 }}
             >
                 {/* Sidebar toggle */}
                 <button
                     onClick={() => setSidebarOpen(true)}
-                    className="flex items-center gap-1.5 text-sm font-medium text-[#475569] hover:text-[#0f172a] transition-colors p-1.5 rounded-lg"
-                    style={{ border: '1px solid transparent' }}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg text-[#475569] hover:text-[#0f172a] hover:bg-[#f4f4f5] transition-all"
                     id="sidebar-toggle-btn"
+                    title="My Resumes"
                 >
-                    <span className="text-base">☰</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <rect y="2" width="16" height="1.5" rx="1" fill="currentColor" />
+                        <rect y="7" width="12" height="1.5" rx="1" fill="currentColor" />
+                        <rect y="12" width="10" height="1.5" rx="1" fill="currentColor" />
+                    </svg>
                 </button>
 
                 {/* Brand */}
@@ -128,7 +125,7 @@ export default function BuildPage() {
                     Ram<span className="text-[#ff6b00]">bo</span>
                 </button>
 
-                <span className="text-[#e2e8f0] mx-1">/</span>
+                <span className="text-[#e2e8f0] mx-1 text-sm">/</span>
 
                 {/* Resume name */}
                 {editingName ? (
@@ -145,18 +142,19 @@ export default function BuildPage() {
                 ) : (
                     <button
                         onClick={() => { setNameDraft(resumeName); setEditingName(true); }}
-                        className="text-sm font-medium text-[#475569] hover:text-[#0f172a] transition-colors truncate max-w-[160px]"
+                        className="text-sm font-medium text-[#475569] hover:text-[#0f172a] transition-colors truncate max-w-[160px] group flex items-center gap-1"
                         id="resume-name-display"
                         title="Click to rename"
                     >
                         {resumeName}
+                        <svg className="opacity-0 group-hover:opacity-100 transition-opacity" width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <path d="M1 9h1.5L7.5 3.5 6 2 1 7v2zm7.2-7.7a.4.4 0 000-.6L7.3.8a.4.4 0 00-.6 0l-.8.8L7.4 3l.8-.7z" fill="#94a3b8" />
+                        </svg>
                     </button>
                 )}
 
                 {/* Mobile tab switcher */}
-                <div
-                    className="flex md:hidden ml-auto bg-[#f4f4f5] rounded-lg p-0.5"
-                >
+                <div className="flex md:hidden ml-auto bg-[#f4f4f5] rounded-lg p-0.5">
                     {(['editor', 'preview'] as const).map((tab) => (
                         <button
                             key={tab}
@@ -175,9 +173,9 @@ export default function BuildPage() {
 
                 {/* Right actions */}
                 <div className="hidden md:flex items-center gap-2 ml-auto">
-                    {/* Autosave */}
+                    {/* Autosave indicator */}
                     <span
-                        className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full"
+                        className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full transition-all"
                         style={{
                             color: isSaving ? '#94a3b8' : '#10b981',
                             background: isSaving ? '#f4f4f5' : '#f0fdf4',
@@ -189,14 +187,12 @@ export default function BuildPage() {
                         }
                     </span>
 
-                    {/* OCR upload */}
+                    {/* OCR import */}
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isOCRProcessing}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all hover:border-[#ffd4b0] hover:text-[#ff6b00]"
                         style={{ borderColor: '#e2e8f0', color: '#475569', background: '#fff' }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#ffd4b0'; (e.currentTarget as HTMLButtonElement).style.color = '#ff6b00'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; }}
                         id="upload-ocr-btn"
                     >
                         {isOCRProcessing
@@ -206,36 +202,32 @@ export default function BuildPage() {
                     </button>
                     <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} />
 
-                    {/* Theme */}
+                    {/* Match Design */}
+                    <button
+                        onClick={() => router.push('/design')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all hover:border-[#6366f1]/50 hover:text-[#6366f1]"
+                        style={{ borderColor: '#e2e8f0', color: '#475569', background: '#fff' }}
+                        id="match-design-btn"
+                    >
+                        🎨 Match Design
+                    </button>
+
+                    {/* Theme selector */}
                     <ThemeSelector currentTheme={currentTheme} onSelect={setCurrentTheme} />
 
-                    {/* Export */}
-                    <div className="relative">
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setExportMenuOpen((v) => !v)}
-                            loading={isExportingPDF}
-                            id="export-btn"
-                        >
-                            Export ↓
-                        </Button>
-                        {exportMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setExportMenuOpen(false)} />
-                                <div
-                                    className="absolute right-0 top-full mt-2 z-20 rounded-2xl shadow-xl border p-1.5 min-w-[160px] animate-scale-in"
-                                    style={{ background: '#fff', borderColor: '#e2e8f0' }}
-                                >
-                                    <ExportItem icon="📄" label="PDF (Print-perfect)" onClick={handleExportPDF} id="export-pdf-btn" />
-                                    <ExportItem icon="📋" label="Plain Text (ATS)" onClick={handleExportText} id="export-txt-btn" />
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    {/* PDF Download — single clean button */}
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleExportPDF}
+                        loading={isExportingPDF}
+                        id="download-pdf-btn"
+                    >
+                        ⬇ Download PDF
+                    </Button>
                 </div>
 
-                {/* Mobile export button */}
+                {/* Mobile PDF button */}
                 <div className="md:hidden ml-2">
                     <Button variant="primary" size="sm" onClick={handleExportPDF} loading={isExportingPDF} id="mobile-export-btn">
                         PDF
@@ -243,48 +235,26 @@ export default function BuildPage() {
                 </div>
             </header>
 
-            {/* ============================================================
-          MAIN SPLIT LAYOUT
-          ============================================================ */}
+            {/* ── MAIN SPLIT LAYOUT ────────────────────────── */}
             <div className="flex flex-1 overflow-hidden">
 
-                {/* Left: Editor (dark panel) */}
+                {/* Left: Editor */}
                 <div
-                    className={`
-            flex flex-col overflow-hidden
-            md:w-[420px] md:flex-shrink-0
-            ${activeTab === 'editor' ? 'flex' : 'hidden'} md:flex
-          `}
+                    className={`flex flex-col overflow-hidden md:w-[440px] md:flex-shrink-0 ${activeTab === 'editor' ? 'flex' : 'hidden'} md:flex`}
                     style={{ borderRight: '1px solid #e2e8f0', background: '#0f172a' }}
                 >
-                    {/* Editor top bar */}
-                    <div
-                        className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0"
-                        style={{ background: '#1e293b', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                    >
-                        <span className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">Editor</span>
-                        <div className="ml-auto flex items-center gap-1.5">
-                            <span className="text-[10px] text-[#475569]">Click any field to edit</span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#ff6b00] animate-pulse" />
-                        </div>
-                    </div>
-
-                    {/* Structured editor */}
                     <StructuredEditor
                         data={resumeData}
                         onChange={setResumeData}
                     />
                 </div>
 
-                {/* Right: Preview (light panel) */}
+                {/* Right: Preview */}
                 <div
-                    className={`
-            flex flex-col overflow-hidden flex-1
-            ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex
-          `}
+                    className={`flex flex-col overflow-hidden flex-1 ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex`}
                     style={{ background: '#f1f5f9' }}
                 >
-                    {/* Preview top bar */}
+                    {/* Preview toolbar */}
                     <div
                         className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0"
                         style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}
@@ -294,23 +264,28 @@ export default function BuildPage() {
                         {/* Zoom controls */}
                         <div className="flex items-center gap-1 ml-2 bg-[#f4f4f5] rounded-lg px-1 py-0.5">
                             <button
-                                onClick={() => setPreviewZoom((z) => Math.max(0.4, z - 0.1))}
+                                onClick={() => setPreviewZoom((z) => Math.max(0.35, z - 0.05))}
                                 className="w-6 h-6 flex items-center justify-center text-[#94a3b8] hover:text-[#0f172a] transition-colors text-sm"
                             >−</button>
                             <span className="text-[10px] text-[#94a3b8] tabular-nums w-8 text-center">{Math.round(previewZoom * 100)}%</span>
                             <button
-                                onClick={() => setPreviewZoom((z) => Math.min(1.2, z + 0.1))}
+                                onClick={() => setPreviewZoom((z) => Math.min(1.2, z + 0.05))}
                                 className="w-6 h-6 flex items-center justify-center text-[#94a3b8] hover:text-[#0f172a] transition-colors text-sm"
                             >+</button>
                         </div>
 
-                        {/* ATS badge */}
-                        <span
-                            className="text-[10px] font-medium px-2 py-0.5 rounded-full hidden sm:inline-flex"
-                            style={{ color: '#10b981', background: '#f0fdf4', border: '1px solid #bbf7d0' }}
+                        {/* ATS toggle */}
+                        <button
+                            onClick={() => setShowAtsPanel(v => !v)}
+                            className="text-[10px] font-medium px-3 py-1.5 rounded-full hidden sm:inline-flex items-center gap-1.5 ml-1 transition-all"
+                            style={{
+                                color: showAtsPanel ? '#fff' : '#10b981',
+                                background: showAtsPanel ? '#10b981' : '#f0fdf4',
+                                border: `1px solid ${showAtsPanel ? '#059669' : '#bbf7d0'}`
+                            }}
                         >
-                            ATS-safe
-                        </span>
+                            <span>🎯</span> {showAtsPanel ? 'Hide ATS Score' : 'ATS Score'}
+                        </button>
 
                         <div className="ml-auto flex items-center gap-2">
                             {/* Mobile theme selector */}
@@ -322,39 +297,53 @@ export default function BuildPage() {
                                 onClick={handleExportPDF}
                                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all"
                                 style={{ background: '#fff3e8', color: '#ff6b00', border: '1px solid #ffd4b0' }}
-                                id="preview-export-pdf-btn"
+                                id="preview-pdf-btn"
                             >
-                                ↓ PDF
+                                ⬇ PDF
                             </button>
                         </div>
                     </div>
 
-                    {/* Preview scroll area */}
-                    <div className="flex-1 overflow-y-auto overflow-x-auto p-6 flex justify-center items-start">
-                        <ResumePreview
-                            data={resumeData}
-                            theme={currentTheme}
-                            scale={previewZoom}
-                            id="resume-preview-root"
-                        />
+                    {/* Preview + ATS side panel */}
+                    <div className="flex-1 flex overflow-hidden">
+                        {/* ATS panel — desktop side pane */}
+                        {showAtsPanel && (
+                            <div className="w-[300px] border-r border-[#e2e8f0] bg-white overflow-y-auto hidden lg:block shrink-0 p-4">
+                                <ATSScorePanel />
+                            </div>
+                        )}
+
+                        {/* Preview canvas */}
+                        <div className="flex-1 overflow-y-auto overflow-x-auto p-6 flex justify-center items-start">
+                            <ResumePreview
+                                data={resumeData}
+                                theme={currentTheme}
+                                scale={previewZoom}
+                                id="resume-preview-root"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Sidebar */}
             <ResumesSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        </div>
-    );
-}
 
-function ExportItem({ icon, label, onClick, id }: { icon: string; label: string; onClick: () => void; id?: string }) {
-    return (
-        <button
-            onClick={onClick}
-            id={id}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-[#475569] hover:bg-[#f4f4f5] hover:text-[#0f172a] transition-all"
-        >
-            {icon} {label}
-        </button>
+            {/* Mobile ATS modal */}
+            {showAtsPanel && (
+                <div className="fixed inset-0 z-50 bg-black/50 lg:hidden flex items-end sm:items-center justify-center p-4" onClick={() => setShowAtsPanel(false)}>
+                    <div className="bg-white rounded-xl w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-[#e2e8f0] sticky top-0 bg-white z-10">
+                            <h3 className="text-sm font-bold text-[#0f172a]">ATS Intelligence</h3>
+                            <button onClick={() => setShowAtsPanel(false)} className="text-[#94a3b8] hover:text-[#0f172a]">✕</button>
+                        </div>
+                        <div className="p-4">
+                            <ATSScorePanel />
+                        </div>
+                    </div>
+                </div>
+            )}
+            <ThemeSettings />
+        </div>
     );
 }
