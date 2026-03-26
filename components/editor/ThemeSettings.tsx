@@ -1,157 +1,461 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useResumeStore } from '@/store/resumeStore';
 import { getThemeById } from '@/lib/theme';
 import type { ResumeTheme, ThemePalette } from '@/types';
 
-const PALETTE_FIELDS: Array<{ key: keyof ThemePalette; label: string }> = [
-    { key: 'primary', label: 'Primary' },
-    { key: 'secondary', label: 'Secondary' },
-    { key: 'accent', label: 'Accent' },
-    { key: 'textColor', label: 'Text' },
-    { key: 'neutralBackground', label: 'Canvas' },
-    { key: 'sidebarBackground', label: 'Sidebar' },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PALETTE_FIELDS: Array<{ key: keyof ThemePalette; label: string; description: string }> = [
+    { key: 'primary',           label: 'Primary',  description: 'Headings & links'       },
+    { key: 'secondary',         label: 'Secondary', description: 'Accents & tags'        },
+    { key: 'accent',            label: 'Accent',    description: 'Highlights & icons'    },
+    { key: 'textColor',         label: 'Body Text', description: 'Main text color'       },
+    { key: 'neutralBackground', label: 'Canvas',    description: 'Page background'       },
+    { key: 'sidebarBackground', label: 'Sidebar',   description: 'Left panel background' },
 ];
 
 const FONT_OPTIONS = [
-    { label: 'Inter', value: "'Inter', 'Plus Jakarta Sans', sans-serif" },
-    { label: 'Outfit', value: "'Outfit', 'Inter', sans-serif" },
-    { label: 'Jakarta Sans', value: "'Plus Jakarta Sans', 'Inter', sans-serif" },
-    { label: 'Georgia', value: "'Georgia', 'Times New Roman', serif" },
-    { label: 'Monospace', value: "'SFMono-Regular', 'Consolas', monospace" },
-];
+    { label: 'Inter',             value: "'Inter', sans-serif"              },
+    { label: 'Roboto',            value: "'Roboto', sans-serif"             },
+    { label: 'Open Sans',         value: "'Open Sans', sans-serif"          },
+    { label: 'Lato',              value: "'Lato', sans-serif"               },
+    { label: 'Manrope',           value: "'Manrope', sans-serif"            },
+    { label: 'DM Sans',           value: "'DM Sans', sans-serif"            },
+    { label: 'Plus Jakarta Sans', value: "'Plus Jakarta Sans', sans-serif"  },
+    { label: 'Merriweather',      value: "'Merriweather', serif"            },
+    { label: 'Georgia',           value: "'Georgia', 'Times New Roman', serif" },
+] as const;
 
 const HEADING_FONT_OPTIONS = [
-    { label: 'Match body', value: '' },
-    { label: 'Outfit', value: "'Outfit', 'Inter', sans-serif" },
-    { label: 'Inter', value: "'Inter', 'Plus Jakarta Sans', sans-serif" },
-    { label: 'Georgia', value: "'Georgia', serif" },
-];
+    { label: 'Same as body', value: '' },
+    ...FONT_OPTIONS,
+] as const;
 
-const SPACING_OPTIONS: NonNullable<ResumeTheme['spacing']>[] = ['compact', 'normal', 'spacious'];
 const BULLET_OPTIONS: NonNullable<ResumeTheme['bulletStyle']>[] = ['dot', 'dash', 'arrow', 'square'];
 
+const BULLET_SYMBOLS: Record<NonNullable<ResumeTheme['bulletStyle']>, string> = {
+    dot:    '•',
+    dash:   '–',
+    arrow:  '›',
+    square: '▪',
+};
+
+const SPACING_PRESETS = [
+    { label: 'Compact',  value: 0.85 },
+    { label: 'Normal',   value: 1.00 },
+    { label: 'Airy',     value: 1.25 },
+];
+
+// ─── Color Utilities ──────────────────────────────────────────────────────────
+
+/** Expand 3-char hex and validate; returns a safe 6-char hex or fallback */
+function normalizeColor(value: string, fallback = '#0f172a'): string {
+    const trimmed = value?.trim() ?? '';
+    if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed.toLowerCase();
+    if (/^#[0-9a-f]{3}$/i.test(trimmed)) {
+        const [, r, g, b] = trimmed;
+        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    return fallback;
+}
+
+function getLuminance(hex: string): number {
+    const safe = normalizeColor(hex, '#888888');
+    const m = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(safe);
+    if (!m) return 0.5;
+    return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)]
+        .map((v) => {
+            const s = v / 255;
+            return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+        })
+        .reduce((acc, c, i) => acc + c * [0.2126, 0.7152, 0.0722][i], 0);
+}
+
+function getContrast(hex1: string, hex2: string): number {
+    const l1 = getLuminance(hex1);
+    const l2 = getLuminance(hex2);
+    const [lighter, darker] = l1 > l2 ? [l1, l2] : [l2, l1];
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+function getContrastLabel(ratio: number): { label: string; color: string } {
+    if (ratio >= 7)   return { label: 'AAA', color: '#34d399' };
+    if (ratio >= 4.5) return { label: 'AA',  color: '#86efac' };
+    if (ratio >= 3)   return { label: 'AA+', color: '#fbbf24' };
+    return { label: 'Fail', color: '#f87171' };
+}
+
+// ─── Helper: numerical spacing ─────────────────────────────────────────────────
+
+function toNumericalSpacing(spacing: ResumeTheme['spacing']): number {
+    if (typeof spacing === 'number') return spacing;
+    if (spacing === 'compact')  return 0.85;
+    if (spacing === 'spacious') return 1.25;
+    return 1.0;
+}
+
+// ─── Debounce hook ─────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function useDebounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
+    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    return useCallback(
+        (...args: Parameters<T>) => {
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => fn(...args), delay);
+        },
+        [fn, delay],
+    ) as T;
+}
+
+// ─── ThemeCard (live mini-preview) ────────────────────────────────────────────
+
 function ThemeCard({ theme }: { theme: ResumeTheme }) {
-    const palette = theme.palette;
+    const { palette } = theme;
+    const bg   = palette.neutralBackground || '#ffffff';
+    const text = palette.textColor         || '#0f172a';
 
     return (
         <div
-            className="rounded-2xl border p-4"
-            style={{
-                background: palette.neutralBackground || '#ffffff',
-                borderColor: `${palette.primary}30`,
-                color: palette.textColor || '#0f172a',
-            }}
+            className="overflow-hidden rounded-2xl border transition-all duration-300"
+            style={{ background: bg, borderColor: `${palette.primary}25`, color: text }}
         >
+            {/* Header band */}
             <div
-                className="rounded-xl p-4"
+                className="px-4 py-3"
                 style={{
                     background:
                         theme.category === 'creative'
                             ? `linear-gradient(135deg, ${palette.primary}, ${palette.accent || palette.secondary || palette.primary})`
                             : palette.primary,
-                    color: '#ffffff',
                 }}
             >
-                <div className="text-lg font-black">Alex Johnson</div>
-                <div className="text-xs opacity-80">Senior Product Engineer</div>
+                <div className="text-base font-black tracking-tight" style={{ color: '#ffffff' }}>
+                    Alex Johnson
+                </div>
+                <div className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                    Senior Product Engineer
+                </div>
             </div>
 
-            <div className="mt-4 space-y-3">
+            {/* Body */}
+            <div className="p-4 space-y-3">
                 <div>
                     <div
-                        className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em]"
+                        className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.2em]"
                         style={{ color: palette.primary }}
                     >
                         Experience
                     </div>
-                    <div className="space-y-1.5 text-xs">
-                        <div className="font-semibold">Rambo Labs</div>
-                        <div className="opacity-70">Product Engineer</div>
-                        <div className="flex gap-2">
-                            <span style={{ color: palette.accent || palette.primary }}>•</span>
-                            <span className="opacity-80">Shipped a polished resume workflow used by thousands.</span>
+                    <div className="space-y-1 text-[11px]">
+                        <div className="font-semibold" style={{ color: text }}>
+                            Rambo Labs
+                        </div>
+                        <div style={{ color: `${text}99` }}>Product Engineer · 2022–Present</div>
+                        <div className="flex gap-1.5 items-start">
+                            <span style={{ color: palette.accent || palette.primary, lineHeight: 1.4 }}>
+                                {BULLET_SYMBOLS[theme.bulletStyle || 'dot']}
+                            </span>
+                            <span style={{ color: `${text}bb` }}>
+                                Shipped a polished resume workflow used by thousands.
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex gap-2">
-                    {[palette.primary, palette.secondary, palette.accent].filter(Boolean).map((color, index) => (
-                        <span
-                            key={`${color}-${index}`}
-                            className="h-6 flex-1 rounded-full border"
-                            style={{ background: color, borderColor: 'rgba(15,23,42,0.08)' }}
-                        />
-                    ))}
+                {/* Color swatches */}
+                <div className="flex gap-1.5 pt-1">
+                    {[palette.primary, palette.secondary, palette.accent]
+                        .filter(Boolean)
+                        .map((color, i) => (
+                            <span
+                                key={`${color}-${i}`}
+                                className="h-5 flex-1 rounded-full border"
+                                style={{ background: color, borderColor: 'rgba(0,0,0,0.08)' }}
+                                title={color}
+                            />
+                        ))}
                 </div>
             </div>
         </div>
     );
 }
 
-function Segmented<T extends string>({
-    label,
-    options,
+// ─── ColorSwatch (color picker + hex input) ────────────────────────────────────
+
+interface ColorSwatchProps {
+    label: string;
+    description: string;
+    colorKey: keyof ThemePalette;
+    value: string;
+    canvasColor: string;
+    onChange: (key: keyof ThemePalette, value: string) => void;
+}
+
+function ColorSwatch({ label, description, colorKey, value, canvasColor, onChange }: ColorSwatchProps) {
+    const [localHex, setLocalHex] = useState(value);
+    const safeValue = normalizeColor(value, '#0f172a');
+
+    // Sync local state when external value changes
+    useEffect(() => { setLocalHex(value); }, [value]);
+
+    const debouncedChange = useDebounce(
+        useCallback((v: string) => onChange(colorKey, v), [colorKey, onChange]),
+        120,
+    );
+
+    const handleHexInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        setLocalHex(raw);
+        const normalized = normalizeColor(raw, '');
+        if (normalized) debouncedChange(normalized);
+    };
+
+    const handleHexBlur = () => {
+        const normalized = normalizeColor(localHex, safeValue);
+        setLocalHex(normalized);
+        onChange(colorKey, normalized);
+    };
+
+    const shouldCheckContrast = colorKey !== 'neutralBackground' && colorKey !== 'sidebarBackground';
+    const contrast = shouldCheckContrast ? getContrast(safeValue, canvasColor) : null;
+    const contrastInfo = contrast !== null ? getContrastLabel(contrast) : null;
+
+    return (
+        <label
+            className="block rounded-2xl border p-3 cursor-pointer transition-all duration-150 hover:border-white/20"
+            style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.15)' }}
+        >
+            <div className="mb-2.5 flex items-start justify-between gap-2">
+                <div>
+                    <div className="text-xs font-semibold text-white">{label}</div>
+                    <div className="text-[10px] text-white/40 mt-0.5">{description}</div>
+                </div>
+                {contrastInfo && (
+                    <span
+                        className="mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold tracking-wider"
+                        style={{ color: contrastInfo.color, background: `${contrastInfo.color}18` }}
+                        title={`Contrast ratio: ${contrast?.toFixed(1)}:1`}
+                    >
+                        {contrastInfo.label}
+                    </span>
+                )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+                {/* Native color picker — styled as a rounded swatch */}
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-white/15 shadow-inner">
+                    <input
+                        type="color"
+                        value={safeValue}
+                        onChange={(e) => { setLocalHex(e.target.value); onChange(colorKey, e.target.value); }}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        aria-label={`Pick ${label} color`}
+                    />
+                    <div
+                        className="h-full w-full transition-colors duration-150"
+                        style={{ background: safeValue }}
+                    />
+                </div>
+
+                {/* Hex text input */}
+                <input
+                    type="text"
+                    value={localHex}
+                    onChange={handleHexInput}
+                    onBlur={handleHexBlur}
+                    placeholder="#000000"
+                    maxLength={7}
+                    spellCheck={false}
+                    className="w-full rounded-xl border px-3 py-2 text-sm font-mono text-white outline-none transition-all duration-150 focus:border-[#ff6b00] focus:ring-1 focus:ring-[#ff6b00]/30"
+                    style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }}
+                    aria-label={`${label} hex value`}
+                />
+            </div>
+        </label>
+    );
+}
+
+// ─── BulletPicker ──────────────────────────────────────────────────────────────
+
+function BulletPicker({
     value,
     onChange,
 }: {
-    label: string;
-    options: T[];
-    value: T;
-    onChange: (next: T) => void;
+    value: NonNullable<ResumeTheme['bulletStyle']>;
+    onChange: (v: NonNullable<ResumeTheme['bulletStyle']>) => void;
 }) {
     return (
         <div>
-            <div className="mb-2 text-[11px] font-semibold text-white/70">{label}</div>
-            <div className="grid grid-cols-3 gap-2">
-                {options.map((option) => {
-                    const active = option === value;
-                    return (
-                        <button
-                            key={option}
-                            onClick={() => onChange(option)}
-                            className="rounded-xl border px-3 py-2 text-xs font-semibold capitalize transition-all"
-                            style={{
-                                background: active ? '#ff6b00' : 'rgba(255,255,255,0.04)',
-                                color: active ? '#ffffff' : '#cbd5e1',
-                                borderColor: active ? '#ff6b00' : 'rgba(255,255,255,0.08)',
-                            }}
-                        >
-                            {option}
-                        </button>
-                    );
-                })}
+            <div className="mb-2 text-[11px] font-semibold text-white/70">Bullet Style</div>
+            <div className="grid grid-cols-4 gap-2">
+                {BULLET_OPTIONS.map((opt) => (
+                    <button
+                        key={opt}
+                        onClick={() => onChange(opt)}
+                        aria-pressed={opt === value}
+                        className="flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-medium transition-all duration-150"
+                        style={{
+                            background:     opt === value ? '#ff6b00'               : 'rgba(255,255,255,0.04)',
+                            color:          opt === value ? '#ffffff'               : '#94a3b8',
+                            borderColor:    opt === value ? '#ff6b00'               : 'rgba(255,255,255,0.08)',
+                        }}
+                    >
+                        <span className="text-lg leading-none">{BULLET_SYMBOLS[opt]}</span>
+                        <span className="capitalize">{opt}</span>
+                    </button>
+                ))}
             </div>
         </div>
     );
 }
 
+// ─── SpacingControl ────────────────────────────────────────────────────────────
+
+function SpacingControl({
+    value,
+    onChange,
+}: {
+    value: number;
+    onChange: (v: number) => void;
+}) {
+    const activePreset = SPACING_PRESETS.find((p) => Math.abs(p.value - value) < 0.01);
+
+    return (
+        <div>
+            <div className="mb-2 flex items-center justify-between">
+                <div className="text-[11px] font-semibold text-white/70">Spacing & Density</div>
+                <div className="flex items-center gap-1.5">
+                    {activePreset && (
+                        <span className="rounded-md bg-[#ff6b00]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#ff6b00] uppercase tracking-wider">
+                            {activePreset.label}
+                        </span>
+                    )}
+                    <span className="text-[10px] font-mono text-white/40">{value.toFixed(2)}×</span>
+                </div>
+            </div>
+
+            {/* Quick presets */}
+            <div className="mb-3 flex gap-2">
+                {SPACING_PRESETS.map((p) => (
+                    <button
+                        key={p.value}
+                        onClick={() => onChange(p.value)}
+                        className="flex-1 rounded-lg border py-1.5 text-[11px] font-semibold transition-all"
+                        style={{
+                            background:  Math.abs(p.value - value) < 0.01 ? '#ff6b00'              : 'rgba(255,255,255,0.04)',
+                            color:       Math.abs(p.value - value) < 0.01 ? '#ffffff'              : '#94a3b8',
+                            borderColor: Math.abs(p.value - value) < 0.01 ? '#ff6b00'              : 'rgba(255,255,255,0.08)',
+                        }}
+                    >
+                        {p.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Fine-tuning slider */}
+            <input
+                type="range"
+                min="0.8"
+                max="1.4"
+                step="0.05"
+                value={value}
+                onChange={(e) => onChange(parseFloat(e.target.value))}
+                className="w-full accent-[#ff6b00]"
+                aria-label="Spacing density"
+            />
+            <div className="mt-1 flex justify-between text-[9px] text-white/30">
+                <span>Tighter</span>
+                <span>Looser</span>
+            </div>
+        </div>
+    );
+}
+
+// ─── FontSelect ────────────────────────────────────────────────────────────────
+
+function FontSelect({
+    label,
+    value,
+    options,
+    onChange,
+}: {
+    label: string;
+    value: string;
+    options: readonly { label: string; value: string }[];
+    onChange: (v: string) => void;
+}) {
+    return (
+        <div>
+            <label className="mb-2 block text-[11px] font-semibold text-white/70">{label}</label>
+            <div className="relative">
+                <select
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-full appearance-none rounded-xl border px-3 py-3 text-sm text-white outline-none transition-all duration-150 focus:border-[#ff6b00] focus:ring-1 focus:ring-[#ff6b00]/30"
+                    style={{
+                        background:   'rgba(255,255,255,0.05)',
+                        borderColor:  'rgba(255,255,255,0.10)',
+                        fontFamily:   value || undefined,
+                    }}
+                >
+                    {options.map((opt) => (
+                        <option
+                            key={opt.label}
+                            value={opt.value}
+                            style={{ color: '#0f172a', fontFamily: opt.value }}
+                        >
+                            {opt.label}
+                        </option>
+                    ))}
+                </select>
+                {/* Chevron */}
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                </div>
+            </div>
+            {/* Font preview line */}
+            <div
+                className="mt-1.5 truncate text-[11px] text-white/40"
+                style={{ fontFamily: value || undefined }}
+            >
+                The quick brown fox jumps over the lazy dog
+            </div>
+        </div>
+    );
+}
+
+// ─── ThemeSettings (main export) ──────────────────────────────────────────────
+
 export function ThemeSettings() {
     const [open, setOpen] = useState(false);
     const { currentTheme, setCurrentTheme, updateThemePalette, updateThemeProperty } = useResumeStore();
-
     const baseTheme = useMemo(() => getThemeById(currentTheme.id), [currentTheme.id]);
 
-    const handleReset = () => {
-        setCurrentTheme(baseTheme);
-    };
+    const handleReset = useCallback(() => {
+        if (window.confirm('Reset all theme changes?')) setCurrentTheme(baseTheme);
+    }, [baseTheme, setCurrentTheme]);
+
+    const spacingValue = toNumericalSpacing(currentTheme.spacing);
+    const canvasColor  = normalizeColor(currentTheme.palette.neutralBackground ?? '#ffffff', '#ffffff');
 
     return (
         <>
+            {/* Trigger button */}
             <button
                 onClick={() => setOpen(true)}
-                className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5"
-                style={{
-                    background: '#ffffff',
-                    borderColor: '#e2e8f0',
-                    color: '#0f172a',
-                }}
                 id="theme-settings-btn"
+                aria-label="Open Theme Studio"
+                className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-[0_20px_48px_rgba(15,23,42,0.22)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_56px_rgba(15,23,42,0.28)] active:scale-[0.98]"
+                style={{ background: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
             >
                 <span
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-xl text-white"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-xl text-sm text-white"
                     style={{ background: currentTheme.palette.primary }}
                 >
                     ✦
@@ -160,19 +464,23 @@ export function ThemeSettings() {
             </button>
 
             <Modal open={open} onClose={() => setOpen(false)} title="Theme Studio" maxWidth="max-w-5xl">
-                <div className="grid gap-6 lg:grid-cols-[1.1fr_1.4fr]">
-                    <div className="space-y-4">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="grid gap-6 lg:grid-cols-[1fr_1.5fr]">
+
+                    {/* ── Left column: preview + spacing + bullets ── */}
+                    <div className="space-y-5">
+                        {/* Live preview card */}
+                        <div
+                            className="rounded-2xl border p-4"
+                            style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
+                        >
                             <div className="mb-3 flex items-center justify-between">
                                 <div>
                                     <div className="text-sm font-bold text-white">{currentTheme.name}</div>
-                                    <div className="text-xs text-white/50">
-                                        Live adjustments for color, typography, and layout density.
-                                    </div>
+                                    <div className="text-[11px] text-white/40 mt-0.5">Live preview</div>
                                 </div>
                                 <button
                                     onClick={handleReset}
-                                    className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/70 transition-all hover:border-[#ff6b00]/40 hover:text-white"
+                                    className="rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/60 transition-all hover:border-white/25 hover:text-white"
                                 >
                                     Reset
                                 </button>
@@ -180,82 +488,64 @@ export function ThemeSettings() {
                             <ThemeCard theme={currentTheme} />
                         </div>
 
-                        <Segmented
-                            label="Spacing"
-                            options={SPACING_OPTIONS}
-                            value={currentTheme.spacing || 'normal'}
-                            onChange={(value) => updateThemeProperty('spacing', value)}
+                        <SpacingControl
+                            value={spacingValue}
+                            onChange={(v) => updateThemeProperty('spacing', v)}
                         />
 
-                        <Segmented
-                            label="Bullet Style"
-                            options={BULLET_OPTIONS}
+                        <BulletPicker
                             value={currentTheme.bulletStyle || 'dot'}
-                            onChange={(value) => updateThemeProperty('bulletStyle', value)}
+                            onChange={(v) => updateThemeProperty('bulletStyle', v)}
                         />
                     </div>
 
+                    {/* ── Right column: fonts + colors ── */}
                     <div className="space-y-5">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="mb-2 block text-[11px] font-semibold text-white/70">Body Font</label>
-                                <select
-                                    value={currentTheme.fontFamily}
-                                    onChange={(e) => updateThemeProperty('fontFamily', e.target.value)}
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none"
-                                >
-                                    {FONT_OPTIONS.map((option) => (
-                                        <option key={option.label} value={option.value} style={{ color: '#0f172a' }}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                        {/* Typography */}
+                        <div
+                            className="rounded-2xl border p-4 space-y-4"
+                            style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
+                        >
+                            <div className="text-sm font-bold text-white">Typography</div>
 
-                            <div>
-                                <label className="mb-2 block text-[11px] font-semibold text-white/70">Heading Font</label>
-                                <select
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <FontSelect
+                                    label="Body Font"
+                                    value={currentTheme.fontFamily}
+                                    options={FONT_OPTIONS}
+                                    onChange={(v) => updateThemeProperty('fontFamily', v)}
+                                />
+                                <FontSelect
+                                    label="Heading Font"
                                     value={currentTheme.fontFamilyHeading || ''}
-                                    onChange={(e) => updateThemeProperty('fontFamilyHeading', e.target.value || undefined)}
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none"
-                                >
-                                    {HEADING_FONT_OPTIONS.map((option) => (
-                                        <option key={option.label} value={option.value} style={{ color: '#0f172a' }}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={HEADING_FONT_OPTIONS}
+                                    onChange={(v) => updateThemeProperty('fontFamilyHeading', v || undefined)}
+                                />
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <div className="mb-3 text-sm font-bold text-white">Color System</div>
+                        {/* Color system */}
+                        <div
+                            className="rounded-2xl border p-4"
+                            style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
+                        >
+                            <div className="mb-4 flex items-center justify-between">
+                                <div className="text-sm font-bold text-white">Color System</div>
+                                <div className="text-[10px] text-white/30">AA = 4.5:1 • AAA = 7:1</div>
+                            </div>
+
                             <div className="grid gap-3 sm:grid-cols-2">
-                                {PALETTE_FIELDS.map(({ key, label }) => {
-                                    const color = currentTheme.palette[key] || (key === 'neutralBackground' ? '#ffffff' : '#0f172a');
-                                    return (
-                                        <label key={key} className="rounded-2xl border border-white/8 bg-black/10 p-3">
-                                            <div className="mb-2 flex items-center justify-between">
-                                                <span className="text-xs font-semibold text-white/80">{label}</span>
-                                                <span className="text-[11px] text-white/40">{color}</span>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="color"
-                                                    value={normalizeColor(color)}
-                                                    onChange={(e) => updateThemePalette(key, e.target.value)}
-                                                    className="h-11 w-14 cursor-pointer rounded-xl border border-white/10 bg-transparent"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    value={color}
-                                                    onChange={(e) => updateThemePalette(key, e.target.value)}
-                                                    className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
-                                                />
-                                            </div>
-                                        </label>
-                                    );
-                                })}
+                                {PALETTE_FIELDS.map(({ key, label, description }) => (
+                                    <ColorSwatch
+                                        key={key}
+                                        colorKey={key}
+                                        label={label}
+                                        description={description}
+                                        value={currentTheme.palette[key] ?? (key === 'neutralBackground' ? '#ffffff' : '#0f172a')}
+                                        canvasColor={canvasColor}
+                                        onChange={updateThemePalette}
+                                    />
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -263,14 +553,4 @@ export function ThemeSettings() {
             </Modal>
         </>
     );
-}
-
-function normalizeColor(value: string): string {
-    if (/^#[0-9a-f]{6}$/i.test(value)) return value;
-    if (/^#[0-9a-f]{3}$/i.test(value)) {
-        const [, r, g, b] = value;
-        return `#${r}${r}${g}${g}${b}${b}`;
-    }
-
-    return '#0f172a';
 }

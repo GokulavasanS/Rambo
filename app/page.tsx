@@ -371,7 +371,7 @@ export default function LandingPage() {
                 <div className="flex" style={{ minHeight: 300 }}>
                   {/* Editor panel (hidden on mobile to save space) */}
                   <div className="w-[42%] bg-[#0f172a] p-4 hidden sm:block">
-                    <div className="text-[#64748b] text-[10px] font-mono mb-3">// Your content</div>
+                    <div className="text-[#64748b] text-[10px] font-mono mb-3">{'// Your content'}</div>
                     {[
                       { text: 'Alex Johnson', color: '#f1f5f9', bold: true },
                       { text: 'Senior Engineer · alex@dev.io', color: '#64748b', bold: false },

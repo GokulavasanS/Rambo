@@ -236,11 +236,11 @@ export default function BuildPage() {
             </header>
 
             {/* ── MAIN SPLIT LAYOUT ────────────────────────── */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden w-full">
 
                 {/* Left: Editor */}
                 <div
-                    className={`flex flex-col overflow-hidden md:w-[440px] md:flex-shrink-0 ${activeTab === 'editor' ? 'flex' : 'hidden'} md:flex`}
+                    className={`flex flex-col overflow-hidden w-full md:w-[440px] md:flex-shrink-0 ${activeTab === 'editor' ? 'flex' : 'hidden'} md:flex`}
                     style={{ borderRight: '1px solid #e2e8f0', background: '#0f172a' }}
                 >
                     <StructuredEditor
@@ -251,15 +251,15 @@ export default function BuildPage() {
 
                 {/* Right: Preview */}
                 <div
-                    className={`flex flex-col overflow-hidden flex-1 ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex`}
+                    className={`flex flex-col overflow-hidden w-full flex-1 ${activeTab === 'preview' ? 'flex' : 'hidden'} md:flex`}
                     style={{ background: '#f1f5f9' }}
                 >
                     {/* Preview toolbar */}
                     <div
-                        className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0"
+                        className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0 w-full"
                         style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}
                     >
-                        <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Live Preview</span>
+                        <span className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider hidden sm:inline">Live Preview</span>
 
                         {/* Zoom controls */}
                         <div className="flex items-center gap-1 ml-2 bg-[#f4f4f5] rounded-lg px-1 py-0.5">

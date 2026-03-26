@@ -87,7 +87,7 @@ export default function DesignPage() {
                             <h1 className="text-3xl font-bold text-[#0f172a] mb-3">Match My Design</h1>
                             <p className="text-[#475569] text-base leading-relaxed">
                                 Upload a screenshot of a resume you like.<br />
-                                We'll extract the colors and layout, then generate matching templates.
+                                We&apos;ll extract the colors and layout, then generate matching templates.
                             </p>
                         </div>
 
@@ -151,7 +151,7 @@ export default function DesignPage() {
                         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#fff3e8] text-2xl mb-5">🤔</div>
                         <h2 className="text-2xl font-bold text-[#0f172a] mb-3">One quick question</h2>
                         <p className="text-[#475569] text-sm mb-8 leading-relaxed">
-                            Our layout detector wasn't confident. Which layout does your design use?
+                            Our layout detector wasn&apos;t confident. Which layout does your design use?
                         </p>
                         <div className="grid grid-cols-2 gap-4">
                             {([1, 2] as const).map((cols) => (

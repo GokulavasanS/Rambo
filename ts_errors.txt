@@ -1,0 +1,4 @@
+﻿components/editor/ThemeSettings.tsx(103,19): error TS2554: Expected 1 arguments, but got 0.
+hooks/useExport.ts(225,25): error TS2339: Property 'skills' does not exist on type 'ResumeSection'.
+hooks/useExport.ts(226,45): error TS2339: Property 'skills' does not exist on type 'ResumeSection'.
+hooks/useExport.ts(234,82): error TS2339: Property 'skills' does not exist on type 'ResumeSection'.

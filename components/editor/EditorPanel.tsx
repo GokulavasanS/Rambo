@@ -1,7 +1,14 @@
 // ============================================================
 // components/editor/EditorPanel.tsx
-// Left-hand editor panel with toolbar, file upload, parse
-// status bar, and the TipTap rich text editor.
+// Fixes & upgrades vs original:
+//  • Word count + char count in footer (not just char count)
+//  • Full formatting toolbar: B, I, H1, H2, H3, BulletList, OrderedList, Undo, Redo
+//  • Toolbar buttons use aria-pressed for accessibility
+//  • Helper strip is dismissible (stored in sessionStorage)
+//  • Parse status bar counts entries not just bullets
+//  • Upload button has proper loading ring with aria-busy
+//  • Clears editor shows a toast-style confirmation instead of browser confirm()
+//  • Mobile: toolbar scrolls horizontally without wrapping
 // ============================================================
 
 'use client';
@@ -16,41 +23,93 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import type { ResumeSection, ResumeSectionType } from '@/types';
 
 interface EditorPanelProps {
-    initialText?: string;
-    onChange: (text: string) => void;
-    onUpload: (file: File) => void;
-    isOCRProcessing?: boolean;
-    isParsingText?: boolean;
-    detectedSections?: ResumeSection[];
-    detectedName?: string;
-    sectionType?: ResumeSectionType;
-    roleTitle?: string;
+    initialText?:       string;
+    onChange:           (text: string) => void;
+    onUpload:           (file: File) => void;
+    isOCRProcessing?:   boolean;
+    isParsingText?:     boolean;
+    detectedSections?:  ResumeSection[];
+    detectedName?:      string;
+    sectionType?:       ResumeSectionType;
+    roleTitle?:         string;
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function countWords(text: string): number {
+    return text.trim() ? text.trim().split(/\s+/).length : 0;
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+interface EditorButtonProps {
+    label:      React.ReactNode;
+    title:      string;
+    active:     boolean;
+    onClick:    () => void;
+    className?: string;
+    disabled?:  boolean;
+}
+
+function EditorButton({ label, title, active, onClick, className = '', disabled }: EditorButtonProps) {
+    return (
+        <Tooltip content={title}>
+            <button
+                onClick={onClick}
+                disabled={disabled}
+                aria-pressed={active}
+                aria-label={title}
+                className={[
+                    'px-2 py-1.5 text-xs rounded-md transition-all leading-none font-medium select-none min-w-[26px]',
+                    active
+                        ? 'bg-violet-600/30 text-violet-300 border border-violet-500/40'
+                        : 'text-white/40 hover:text-white hover:bg-white/8 border border-transparent',
+                    disabled ? 'opacity-30 cursor-not-allowed' : '',
+                    className,
+                ].join(' ')}
+            >
+                {label}
+            </button>
+        </Tooltip>
+    );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export function EditorPanel({
-    initialText = '',
+    initialText       = '',
     onChange,
     onUpload,
-    isOCRProcessing = false,
-    isParsingText = false,
-    detectedSections = [],
+    isOCRProcessing   = false,
+    isParsingText     = false,
+    detectedSections  = [],
     detectedName,
     sectionType,
     roleTitle,
 }: EditorPanelProps) {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const prevTextRef = useRef('');
+    const fileInputRef    = useRef<HTMLInputElement>(null);
+    const prevTextRef     = useRef('');
+    const [showHelper, setShowHelper] = useState(() => {
+        try { return sessionStorage.getItem('rambo:helper-dismissed') !== '1'; }
+        catch { return true; }
+    });
+    const [clearing, setClearing]     = useState(false);
+    const [justCleared, setJustCleared] = useState(false);
 
     const editor = useEditor({
         extensions: [
-            StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+            StarterKit.configure({
+                heading: { levels: [1, 2, 3] },
+            }),
             Placeholder.configure({
                 placeholder:
-                    'Paste your resume here — or upload a PDF/image.\n\nStart with your name, then use headings like:\nExperience\nEducation\nSkills\nProjects',
+                    'Paste your resume here — or upload a PDF/image.\n\n' +
+                    'Start with your name, then add section headings:\n' +
+                    'Experience · Education · Skills · Projects',
                 emptyEditorClass: 'is-editor-empty',
             }),
         ],
-        content: initialText || '',
+        content:           initialText || '',
         immediatelyRender: false,
         editorProps: {
             attributes: { class: 'tiptap-editor', spellcheck: 'true' },
@@ -66,11 +125,9 @@ export function EditorPanel({
 
     // Sync external text (e.g. after OCR)
     useEffect(() => {
-        if (!editor) return;
-        if (initialText && initialText !== prevTextRef.current) {
-            editor.commands.setContent(initialText);
-            prevTextRef.current = initialText;
-        }
+        if (!editor || !initialText || initialText === prevTextRef.current) return;
+        editor.commands.setContent(initialText);
+        prevTextRef.current = initialText;
     }, [editor, initialText]);
 
     const handleFileChange = useCallback(
@@ -79,91 +136,143 @@ export function EditorPanel({
             if (file) onUpload(file);
             e.target.value = '';
         },
-        [onUpload]
+        [onUpload],
     );
 
-    const triggerFileUpload = () => fileInputRef.current?.click();
+    const triggerUpload = () => fileInputRef.current?.click();
 
-    const charCount = editor?.getText().length ?? 0;
+    const dismissHelper = () => {
+        setShowHelper(false);
+        try { sessionStorage.setItem('rambo:helper-dismissed', '1'); } catch {}
+    };
+
+    const handleClear = () => {
+        if (!editor?.getText().trim()) return;
+        setClearing(true);
+    };
+
+    const confirmClear = () => {
+        editor?.commands.clearContent();
+        onChange('');
+        setClearing(false);
+        setJustCleared(true);
+        setTimeout(() => setJustCleared(false), 2000);
+    };
+
+    const rawText    = editor?.getText() ?? '';
+    const charCount  = rawText.length;
+    const wordCount  = countWords(rawText);
+
+    // ── Render ──────────────────────────────────────────────────────────────
 
     return (
-        <div className="flex flex-col h-full">
-            {/* ---- Toolbar ---- */}
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/8 bg-[#0b0b12] flex-shrink-0">
-                <span className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mr-1">
+        <div className="flex flex-col h-full" style={{ background: '#0d0d14' }}>
+
+            {/* ── Toolbar ───────────────────────────────────────────── */}
+            <div
+                className="flex items-center gap-0.5 px-2 py-1.5 flex-shrink-0 overflow-x-auto scrollbar-none"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: '#0b0b12' }}
+            >
+                <span className="text-[9px] font-bold text-white/20 uppercase tracking-[0.18em] mr-1.5 flex-shrink-0 hidden sm:block">
                     Editor
                 </span>
 
-                {/* Format helpers */}
+                {/* Text formatting */}
+                <EditorButton label={<b>B</b>}      title="Bold (Ctrl+B)"         active={editor?.isActive('bold')           ?? false} onClick={() => editor?.chain().focus().toggleBold().run()} />
+                <EditorButton label={<i>I</i>}       title="Italic (Ctrl+I)"       active={editor?.isActive('italic')         ?? false} onClick={() => editor?.chain().focus().toggleItalic().run()} />
+
+                <div className="h-3.5 w-px mx-1 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                {/* Headings */}
+                <EditorButton label="H1"  title="Heading 1" active={editor?.isActive('heading', { level: 1 }) ?? false} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} className="text-[10px]" />
+                <EditorButton label="H2"  title="Heading 2" active={editor?.isActive('heading', { level: 2 }) ?? false} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className="text-[10px]" />
+                <EditorButton label="H3"  title="Heading 3" active={editor?.isActive('heading', { level: 3 }) ?? false} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} className="text-[10px]" />
+
+                <div className="h-3.5 w-px mx-1 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                {/* Lists */}
                 <EditorButton
-                    label="B"
-                    title="Bold"
-                    active={editor?.isActive('bold') ?? false}
-                    onClick={() => editor?.chain().focus().toggleBold().run()}
-                    className="font-bold"
-                />
-                <EditorButton
-                    label="I"
-                    title="Italic"
-                    active={editor?.isActive('italic') ?? false}
-                    onClick={() => editor?.chain().focus().toggleItalic().run()}
-                    className="italic"
-                />
-                <EditorButton
-                    label="H2"
-                    title="Heading 2"
-                    active={editor?.isActive('heading', { level: 2 }) ?? false}
-                    onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-                    className="text-[10px]"
-                />
-                <EditorButton
-                    label="• List"
+                    label={<span className="text-[11px]">• —</span>}
                     title="Bullet list"
                     active={editor?.isActive('bulletList') ?? false}
                     onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                    className="text-[10px]"
+                />
+                <EditorButton
+                    label={<span className="text-[11px]">1.</span>}
+                    title="Numbered list"
+                    active={editor?.isActive('orderedList') ?? false}
+                    onClick={() => editor?.chain().focus().toggleOrderedList().run()}
                 />
 
-                <div className="h-3 w-px bg-white/10 mx-1" />
+                <div className="h-3.5 w-px mx-1 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                {/* History */}
+                <EditorButton
+                    label={<span className="text-sm leading-none">↩</span>}
+                    title="Undo (Ctrl+Z)"
+                    active={false}
+                    disabled={!editor?.can().undo()}
+                    onClick={() => editor?.chain().focus().undo().run()}
+                />
+                <EditorButton
+                    label={<span className="text-sm leading-none">↪</span>}
+                    title="Redo (Ctrl+Y)"
+                    active={false}
+                    disabled={!editor?.can().redo()}
+                    onClick={() => editor?.chain().focus().redo().run()}
+                />
+
+                <div className="h-3.5 w-px mx-1 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
                 {/* Upload */}
-                <Tooltip content="Upload PDF or image for OCR">
+                <Tooltip content="Upload PDF or image (OCR)">
                     <button
-                        onClick={triggerFileUpload}
+                        onClick={triggerUpload}
                         disabled={isOCRProcessing}
-                        className={`
-              flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all
-              ${isOCRProcessing
-                                ? 'bg-violet-600/20 text-violet-300 cursor-wait'
-                                : 'bg-white/4 hover:bg-white/8 text-white/50 hover:text-white border border-white/8 hover:border-white/20'
-                            }
-            `}
+                        aria-busy={isOCRProcessing}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all flex-shrink-0 border"
+                        style={{
+                            background:   isOCRProcessing ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.04)',
+                            color:        isOCRProcessing ? '#c4b5fd'                : 'rgba(255,255,255,0.45)',
+                            borderColor:  isOCRProcessing ? 'rgba(139,92,246,0.3)'  : 'rgba(255,255,255,0.08)',
+                            cursor:       isOCRProcessing ? 'wait'                  : 'pointer',
+                        }}
                         id="upload-file-btn"
                     >
                         {isOCRProcessing ? (
                             <>
-                                <span className="w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin" />
-                                Extracting…
+                                <span
+                                    className="w-3 h-3 rounded-full border-2 border-violet-400 border-t-transparent animate-spin flex-shrink-0"
+                                    role="status"
+                                    aria-label="Extracting text…"
+                                />
+                                <span className="hidden sm:inline">Extracting…</span>
                             </>
                         ) : (
-                            <>📄 Upload</>
+                            <>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+                                    <path d="M6 1v7M3 5l3-3 3 3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                <span className="hidden sm:inline">Upload</span>
+                            </>
                         )}
                     </button>
                 </Tooltip>
 
                 {/* Clear */}
-                <Tooltip content="Clear editor">
+                <Tooltip content="Clear all text">
                     <button
-                        onClick={() => {
-                            if (window.confirm('Clear all text?')) {
-                                editor?.commands.clearContent();
-                                onChange('');
-                            }
+                        onClick={handleClear}
+                        disabled={charCount === 0}
+                        className="ml-auto px-2 py-1.5 text-xs rounded-md transition-colors flex-shrink-0"
+                        style={{
+                            color:   charCount === 0 ? 'rgba(255,255,255,0.1)' : justCleared ? '#34d399' : 'rgba(255,255,255,0.2)',
+                            cursor:  charCount === 0 ? 'default' : 'pointer',
                         }}
-                        className="ml-auto px-2 py-1.5 text-xs text-white/20 hover:text-red-400 transition-colors"
+                        aria-label="Clear editor"
                         id="clear-editor-btn"
                     >
-                        ✕
+                        {justCleared ? '✓' : '✕'}
                     </button>
                 </Tooltip>
 
@@ -174,78 +283,98 @@ export function EditorPanel({
                     className="hidden"
                     onChange={handleFileChange}
                     id="resume-file-input"
+                    aria-label="Upload resume file"
                 />
             </div>
 
-            {/* ---- Helper strip ---- */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-violet-950/30 border-b border-violet-900/20 flex-shrink-0">
-                <span className="text-[10px] text-violet-400/60 leading-relaxed">
-                    💡 Use headings like <strong className="text-violet-300/80">Experience</strong>,{' '}
-                    <strong className="text-violet-300/80">Education</strong>,{' '}
-                    <strong className="text-violet-300/80">Skills</strong>.
-                    Select text for AI actions.
-                </span>
-            </div>
+            {/* ── Clear confirmation banner ─────────────────────────── */}
+            {clearing && (
+                <div
+                    className="flex items-center justify-between gap-3 px-4 py-2 flex-shrink-0 text-xs"
+                    style={{ background: 'rgba(239,68,68,0.12)', borderBottom: '1px solid rgba(239,68,68,0.2)' }}
+                >
+                    <span style={{ color: '#fca5a5' }}>Clear all content? This cannot be undone.</span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setClearing(false)}
+                            className="px-2.5 py-1 rounded-lg font-medium transition-colors"
+                            style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={confirmClear}
+                            className="px-2.5 py-1 rounded-lg font-bold transition-colors"
+                            style={{ background: '#ef4444', color: '#fff' }}
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            )}
 
-            {/* ---- Parse status ---- */}
+            {/* ── Helper strip (dismissible) ────────────────────────── */}
+            {showHelper && (
+                <div
+                    className="flex items-center gap-2 px-3 py-2 flex-shrink-0"
+                    style={{ background: 'rgba(109,40,217,0.12)', borderBottom: '1px solid rgba(109,40,217,0.15)' }}
+                >
+                    <span className="text-[10px] leading-relaxed flex-1" style={{ color: 'rgba(196,181,253,0.7)' }}>
+                        💡 Use headings <strong style={{ color: 'rgba(196,181,253,0.9)' }}>Experience</strong>,{' '}
+                        <strong style={{ color: 'rgba(196,181,253,0.9)' }}>Education</strong>,{' '}
+                        <strong style={{ color: 'rgba(196,181,253,0.9)' }}>Skills</strong> — then select any text for AI actions.
+                    </span>
+                    <button
+                        onClick={dismissHelper}
+                        aria-label="Dismiss tip"
+                        className="flex-shrink-0 text-[11px] transition-colors"
+                        style={{ color: 'rgba(196,181,253,0.35)' }}
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
+            {/* ── Parse status ─────────────────────────────────────── */}
             <ParseStatusBar
                 sections={detectedSections}
                 isParsingText={isParsingText}
                 fullName={detectedName}
             />
 
-            {/* ---- TipTap editor ---- */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 relative">
+            {/* ── TipTap editor ────────────────────────────────────── */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 relative">
                 {editor ? (
                     <>
                         <AIToolbar editor={editor} sectionType={sectionType} roleTitle={roleTitle} />
                         <EditorContent editor={editor} className="min-h-full" />
                     </>
                 ) : (
-                    <div className="text-white/20 text-sm animate-pulse">Loading editor…</div>
+                    <div
+                        className="flex items-center gap-2 text-sm animate-pulse"
+                        style={{ color: 'rgba(255,255,255,0.2)' }}
+                    >
+                        <span className="w-3.5 h-3.5 rounded-full border border-white/20 border-t-transparent animate-spin" />
+                        Loading editor…
+                    </div>
                 )}
             </div>
 
-            {/* ---- Footer: char count ---- */}
-            <div className="flex items-center justify-end px-4 py-1.5 border-t border-white/6 flex-shrink-0 bg-[#09090f]">
-                <span className="text-[10px] text-white/15 tabular-nums">
-                    {charCount.toLocaleString()} characters
+            {/* ── Footer: stats ────────────────────────────────────── */}
+            <div
+                className="flex items-center justify-end gap-3 px-4 py-1.5 flex-shrink-0"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: '#09090f' }}
+            >
+                {isParsingText && (
+                    <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'rgba(139,92,246,0.7)' }}>
+                        <span className="w-2.5 h-2.5 rounded-full border border-violet-400 border-t-transparent animate-spin" />
+                        Parsing…
+                    </span>
+                )}
+                <span className="text-[10px] tabular-nums" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                    {wordCount.toLocaleString()} words · {charCount.toLocaleString()} chars
                 </span>
             </div>
         </div>
-    );
-}
-
-// ---- Tiny format button ----
-
-function EditorButton({
-    label,
-    title,
-    active,
-    onClick,
-    className = '',
-}: {
-    label: string;
-    title: string;
-    active: boolean;
-    onClick: () => void;
-    className?: string;
-}) {
-    return (
-        <Tooltip content={title}>
-            <button
-                onClick={onClick}
-                className={`
-          px-2 py-1 text-xs rounded-md transition-all leading-none
-          ${active
-                        ? 'bg-violet-600/30 text-violet-300 border border-violet-500/40'
-                        : 'text-white/30 hover:text-white hover:bg-white/6'
-                    }
-          ${className}
-        `}
-            >
-                {label}
-            </button>
-        </Tooltip>
     );
 }

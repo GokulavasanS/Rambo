@@ -74,12 +74,26 @@ export interface ResumeData {
 // ============================================================
 
 export type TemplateId =
+    // ATS-Optimized (10)
     | 'classic-professional'
     | 'minimal-clean'
     | 'modern-ats'
     | 'compact-developer'
+    | 'executive-impact'
+    | 'apex-recruiter'
+    | 'linkedin-smart'
+    | 'federal-standard'
+    | 'harvard-classic'
+    | 'tech-minimal'
+    // Design-Forward Creative (8)
     | 'elegant-serif'
-    | 'two-column-structured';
+    | 'two-column-structured'
+    | 'aurora-gradient'
+    | 'neon-studio'
+    | 'editorial-bold'
+    | 'portfolio-card'
+    | 'artisan-serif'
+    | 'kinetic-dark';
 
 export type TemplateCategory = 'ats' | 'creative';
 
@@ -107,7 +121,7 @@ export interface ResumeTheme {
     headerStyle: 'centered' | 'left' | 'banner';
     sectionHeadingStyle: 'simple' | 'underline' | 'bold-bar' | 'pill';
     bulletStyle?: 'dot' | 'dash' | 'arrow' | 'square';
-    spacing?: 'compact' | 'normal' | 'spacious';
+    spacing?: 'compact' | 'normal' | 'spacious' | number;
     borderStyle?: 'none' | 'thin' | 'thick';
 }
 

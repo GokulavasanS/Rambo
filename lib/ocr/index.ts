@@ -42,10 +42,12 @@ async function pdfPageToBlob(file: File, pageIndex = 0): Promise<Blob> {
 
         if (!pdfjsLib) throw new Error('pdfjs not available');
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (pdfjsLib as any).GlobalWorkerOptions.workerSrc =
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 
         const arrayBuffer = await file.arrayBuffer();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer }).promise;
         const page = await pdf.getPage(pageIndex + 1);
 

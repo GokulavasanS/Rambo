@@ -1,0 +1,58 @@
+﻿
+> rambo@0.1.0 lint
+> eslint
+
+
+D:\Projects\Rambo\app\build\page.tsx
+  22:15  warning  'ResumeData' is defined but never used                  @typescript-eslint/no-unused-vars
+  49:56  warning  'saveCurrentResume' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\app\layout.tsx
+  28:9  warning  Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
+
+D:\Projects\Rambo\components\editor\AIWritingAssistant.tsx
+  18:5  warning  'originalText' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\components\editor\ATSScorePanel.tsx
+  7:26  warning  'useState' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\components\editor\ResumesSidebar.tsx
+  18:10  warning  'Button' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\components\editor\SplitPane.tsx
+  56:36  warning  'clientX' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\components\editor\StructuredEditor.tsx
+   24:46  warning  'useCallback' is defined but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   27:24  warning  'AIActionType' is defined but never used                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+  119:54  warning  Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                    @typescript-eslint/no-unused-expressions
+  326:37  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\Projects\Rambo\components\editor\ThemeSelector.tsx
+  20:11  warning  'text' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\components\templates\ats\index.tsx
+    8:40  warning  'ResumeSection' is defined but never used                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+  195:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\Projects\Rambo\components\templates\creative\index.tsx
+    8:40  warning  'ResumeSection' is defined but never used                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+   81:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  144:11  warning  'accent' is assigned a value but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  320:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+D:\Projects\Rambo\components\templates\legacy.tsx
+  7:40  warning  'ResumeSection' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\hooks\useAutosave.ts
+  35:8  warning  React Hook useEffect has a missing dependency: 'saveCurrentResume'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\Projects\Rambo\lib\image-analysis\index.ts
+  162:43  warning  'rest' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  182:13  warning  'pixels' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Rambo\lib\storage\index.ts
+  9:41  warning  'ResumeTheme' is defined but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 23 problems (0 errors, 23 warnings)
+

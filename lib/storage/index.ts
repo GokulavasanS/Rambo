@@ -7,6 +7,7 @@
 // IndexedDB for larger resumes in future versions.
 
 import type { StoredResume, ResumeData, ResumeTheme } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
 
 const STORAGE_KEY = 'rambo:resumes';
 const ACTIVE_KEY = 'rambo:active-resume-id';
@@ -86,7 +87,6 @@ export function renameResume(id: string, newName: string): void {
  * Duplicate a resume (creates a new ID).
  */
 export function duplicateResume(id: string): StoredResume | null {
-    const { v4: uuidv4 } = require('uuid');
     const source = loadResume(id);
     if (!source) return null;
 
